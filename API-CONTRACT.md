@@ -1,8 +1,10 @@
 # Khedma API Contract
 
-**Base URL**: `http://your-vps-ip:3001/api`
+**Base URL**: `http://72.61.194.12:3002/api`
 **Auth**: Bearer token (Supabase JWT) in `Authorization` header
-**WebRTC Signaling**: `ws://your-vps-ip:3001/signaling`
+**WebRTC Signaling**: `ws://72.61.194.12:3002/signaling`
+**Supabase URL**: `https://wzkixenddcoezhxpavbn.supabase.co`
+**Supabase Anon Key**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6a2l4ZW5kZGNvZXpoeHBhdmJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMDE0NjcsImV4cCI6MjA4NjY3NzQ2N30.meeliNJVRO7e3fNC_PXS6RI6XmNdAN5hnIjXPNejvwc`
 
 ## Endpoints
 
