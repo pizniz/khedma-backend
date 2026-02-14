@@ -137,11 +137,10 @@ export interface PortfolioPhoto {
 
 export interface Conversation {
   id: string;
-  booking_id?: string | null;
-  client_id: string;
-  provider_id: string;
+  participant_1: string;
+  participant_2: string;
+  last_message_at?: string | null;
   created_at: string;
-  updated_at: string;
 }
 
 export interface ConversationWithPreview extends Conversation {
@@ -159,8 +158,10 @@ export interface Message {
   id: string;
   conversation_id: string;
   sender_id: string;
+  message_type?: string;
   content: string;
-  read_at?: string | null;
+  media_url?: string | null;
+  is_read: boolean;
   created_at: string;
 }
 

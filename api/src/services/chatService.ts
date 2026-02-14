@@ -4,24 +4,25 @@ import type { Conversation, ConversationWithPreview, Message } from '../types';
 
 class ChatService {
   /**
-   * Find an existing conversation between client and provider, or create a new one.
+   * Find an existing conversation between two users, or create a new one.
+   * DB schema: participant_1, participant_2 (not client_id/provider_id)
    */
   async getOrCreateConversation(
     clientId: string,
     providerId: string,
     bookingId?: string
   ): Promise<Conversation> {
-    // Cannot chat with yourself
     if (clientId === providerId) {
       throw new AppError('You cannot start a conversation with yourself', 400);
     }
 
-    // Check if conversation already exists between these two users
+    // Check if conversation already exists (either direction)
     const { data: existing } = await supabaseAdmin
       .from('conversations')
       .select('*')
-      .eq('client_id', clientId)
-      .eq('provider_id', providerId)
+      .or(
+        `and(participant_1.eq.${clientId},participant_2.eq.${providerId}),and(participant_1.eq.${providerId},participant_2.eq.${clientId})`
+      )
       .single();
 
     if (existing) {
@@ -40,28 +41,12 @@ class ChatService {
       throw new AppError('Provider not found', 404);
     }
 
-    // If booking_id is provided, verify it belongs to these users
-    if (bookingId) {
-      const { data: booking, error: bookingError } = await supabaseAdmin
-        .from('bookings')
-        .select('id')
-        .eq('id', bookingId)
-        .eq('client_id', clientId)
-        .eq('provider_id', providerId)
-        .single();
-
-      if (bookingError || !booking) {
-        throw new AppError('Booking not found or does not belong to these users', 404);
-      }
-    }
-
     // Create conversation
     const { data, error } = await supabaseAdmin
       .from('conversations')
       .insert({
-        client_id: clientId,
-        provider_id: providerId,
-        booking_id: bookingId || null,
+        participant_1: clientId,
+        participant_2: providerId,
       })
       .select()
       .single();
@@ -72,8 +57,9 @@ class ChatService {
         const { data: retried } = await supabaseAdmin
           .from('conversations')
           .select('*')
-          .eq('client_id', clientId)
-          .eq('provider_id', providerId)
+          .or(
+            `and(participant_1.eq.${clientId},participant_2.eq.${providerId}),and(participant_1.eq.${providerId},participant_2.eq.${clientId})`
+          )
           .single();
 
         if (retried) {
@@ -92,12 +78,11 @@ class ChatService {
    * List all conversations for a user, with last message preview and unread count.
    */
   async listConversations(userId: string): Promise<ConversationWithPreview[]> {
-    // Get all conversations where user is client or provider
     const { data: conversations, error } = await supabaseAdmin
       .from('conversations')
       .select('*')
-      .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
-      .order('updated_at', { ascending: false });
+      .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
+      .order('last_message_at', { ascending: false, nullsFirst: false });
 
     if (error) {
       console.error('[ChatService] Error listing conversations:', error);
@@ -108,7 +93,6 @@ class ChatService {
       return [];
     }
 
-    // For each conversation, get last message + unread count + other user's profile
     const results: ConversationWithPreview[] = await Promise.all(
       conversations.map(async (conv: any) => {
         // Get last message
@@ -126,10 +110,10 @@ class ChatService {
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', conv.id)
           .neq('sender_id', userId)
-          .is('read_at', null);
+          .eq('is_read', false);
 
         // Get the other user's profile
-        const otherUserId = conv.client_id === userId ? conv.provider_id : conv.client_id;
+        const otherUserId = conv.participant_1 === userId ? conv.participant_2 : conv.participant_1;
         const { data: otherProfile } = await supabaseAdmin
           .from('profiles')
           .select('user_id, full_name, avatar_url')
@@ -139,7 +123,7 @@ class ChatService {
         return {
           ...conv,
           last_message: lastMsg?.content || null,
-          last_message_at: lastMsg?.created_at || null,
+          last_message_at: lastMsg?.created_at || conv.last_message_at || null,
           unread_count: unreadCount || 0,
           other_user: otherProfile
             ? {
@@ -164,7 +148,6 @@ class ChatService {
     page: number = 1,
     limit: number = 50
   ): Promise<{ messages: Message[]; total: number }> {
-    // Verify user is a participant
     await this.verifyParticipant(conversationId, userId);
 
     const offset = (page - 1) * limit;
@@ -195,7 +178,6 @@ class ChatService {
     senderId: string,
     content: string
   ): Promise<Message> {
-    // Verify sender is a participant
     await this.verifyParticipant(conversationId, senderId);
 
     const { data, error } = await supabaseAdmin
@@ -218,18 +200,16 @@ class ChatService {
 
   /**
    * Mark all messages in a conversation as read for the given user.
-   * Only marks messages NOT sent by this user (i.e., messages from the other party).
    */
   async markAsRead(conversationId: string, userId: string): Promise<number> {
-    // Verify user is a participant
     await this.verifyParticipant(conversationId, userId);
 
     const { data, error } = await supabaseAdmin
       .from('messages')
-      .update({ read_at: new Date().toISOString() })
+      .update({ is_read: true })
       .eq('conversation_id', conversationId)
       .neq('sender_id', userId)
-      .is('read_at', null)
+      .eq('is_read', false)
       .select('id');
 
     if (error) {
@@ -248,7 +228,7 @@ class ChatService {
       .from('conversations')
       .select('id')
       .eq('id', conversationId)
-      .or(`client_id.eq.${userId},provider_id.eq.${userId}`)
+      .or(`participant_1.eq.${userId},participant_2.eq.${userId}`)
       .single();
 
     if (error || !conversation) {
