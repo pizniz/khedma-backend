@@ -23,3 +23,8 @@ Thumbs.db
 # Supabase local development
 .branches/
 .temp/
+
+# Node.js API
+api/node_modules/
+api/dist/
+api/.env
