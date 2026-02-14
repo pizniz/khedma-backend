@@ -121,6 +121,49 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   };
 }
 
+// ─── Portfolio Photo ─────────────────────────────────────────
+
+export interface PortfolioPhoto {
+  id: string;
+  provider_id: string;
+  storage_path: string;
+  url: string;
+  caption?: string | null;
+  display_order: number;
+  created_at: string;
+}
+
+// ─── Chat / Messaging ────────────────────────────────────────
+
+export interface Conversation {
+  id: string;
+  booking_id?: string | null;
+  client_id: string;
+  provider_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationWithPreview extends Conversation {
+  last_message?: string | null;
+  last_message_at?: string | null;
+  unread_count: number;
+  other_user?: {
+    user_id: string;
+    full_name: string;
+    avatar_url?: string | null;
+  };
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  read_at?: string | null;
+  created_at: string;
+}
+
 // ─── WebRTC Signaling ────────────────────────────────────────
 
 export interface SocketData {

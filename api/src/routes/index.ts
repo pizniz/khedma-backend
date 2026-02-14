@@ -7,6 +7,8 @@ import providersRouter from './providers';
 import reviewsRouter from './reviews';
 import bookingsRouter from './bookings';
 import subscriptionsRouter from './subscriptions';
+import chatRouter from './chat';
+import uploadsRouter from './uploads';
 
 const router = Router();
 
@@ -55,5 +57,7 @@ router.use('/providers', banCheck as any, providersRouter);
 router.use('/reviews', banCheck as any, reviewsRouter);
 router.use('/bookings', banCheck as any, bookingsRouter);
 router.use('/subscriptions', banCheck as any, subscriptionsRouter);
+router.use('/conversations', banCheck as any, chatRouter);
+router.use('/uploads', banCheck as any, uploadsRouter);
 
 export default router;

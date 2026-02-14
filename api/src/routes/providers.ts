@@ -4,6 +4,7 @@ import { authMiddleware } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { providerService } from '../services/providerService';
+import { uploadService } from '../services/uploadService';
 import type { AuthenticatedRequest } from '../types';
 
 const router = Router();
@@ -111,6 +112,18 @@ router.get(
     }
 
     res.json({ success: true, data: provider });
+  })
+);
+
+// ─── GET /api/providers/:id/photos - List portfolio photos (public) ──
+
+router.get(
+  '/:id/photos',
+  asyncHandler(async (req, res: Response) => {
+    const { id } = req.params;
+    const photos = await uploadService.listPortfolioPhotos(id);
+
+    res.json({ success: true, data: photos });
   })
 );
 
