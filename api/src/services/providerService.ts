@@ -118,6 +118,69 @@ class ProviderService {
     return data as Provider;
   }
 
+  async getOwnProfile(userId: string): Promise<Provider | null> {
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('user_type', 'provider')
+      .single();
+
+    if (error || !data) return null;
+
+    // Return full profile including phone - this is the provider viewing their own profile
+    return data as Provider;
+  }
+
+  async updateProfile(
+    userId: string,
+    updates: {
+      full_name?: string;
+      bio?: string;
+      city?: string;
+      avatar_url?: string;
+      is_available?: boolean;
+    }
+  ): Promise<Provider> {
+    // Verify the user is actually a provider
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('profiles')
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('user_type', 'provider')
+      .single();
+
+    if (fetchError || !existing) {
+      throw new AppError('Provider profile not found', 404);
+    }
+
+    // Build update object with only provided fields
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (updates.full_name !== undefined) updateData.full_name = updates.full_name;
+    if (updates.bio !== undefined) updateData.bio = updates.bio;
+    if (updates.city !== undefined) updateData.city = updates.city;
+    if (updates.avatar_url !== undefined) updateData.avatar_url = updates.avatar_url;
+    if (updates.is_available !== undefined) updateData.is_available = updates.is_available;
+
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .update(updateData)
+      .eq('user_id', userId)
+      .eq('user_type', 'provider')
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('[ProviderService] Error updating profile:', error);
+      throw new AppError('Failed to update profile', 500);
+    }
+
+    return data as Provider;
+  }
+
   private sanitizeProvider(provider: Provider): Provider {
     // Hide phone number for specialists
     if (provider.provider_tier === 'specialist' && !provider.phone_visible) {

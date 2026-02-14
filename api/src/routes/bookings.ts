@@ -5,15 +5,110 @@ import { asyncHandler, AppError } from '../middleware/errorHandler';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { supabaseAdmin } from '../services/supabase';
 import { banService } from '../services/banService';
+import { bookingService } from '../services/bookingService';
 import type { AuthenticatedRequest } from '../types';
 
 const router = Router();
+
+// ─── Validation Schemas ─────────────────────────────────────
+
+const createBookingSchema = z.object({
+  provider_id: z.string().uuid('Invalid provider ID'),
+  service_category: z.string().min(1, 'Service category is required'),
+  description: z.string().max(1000).optional(),
+  scheduled_date: z.string().optional(),
+});
+
+const listBookingsQuerySchema = z.object({
+  status: z.enum(['pending', 'confirmed', 'in_progress', 'completed', 'cancelled']).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+const updateStatusSchema = z.object({
+  status: z.enum(['confirmed', 'completed']),
+});
 
 const cancelBookingSchema = z.object({
   reason: z.string().min(5, 'Reason must be at least 5 characters').max(500),
 });
 
-// POST /api/bookings/:id/cancel - cancel booking + strike tracking
+// ─── POST /api/bookings - Create a new booking ─────────────
+
+router.post(
+  '/',
+  authMiddleware as any,
+  writeLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = createBookingSchema.parse(req.body);
+
+    const booking = await bookingService.createBooking({
+      client_id: req.user.id,
+      provider_id: body.provider_id,
+      service_category: body.service_category,
+      description: body.description,
+      scheduled_date: body.scheduled_date,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: booking,
+      message: 'Booking created successfully.',
+    });
+  })
+);
+
+// ─── GET /api/bookings - List user's bookings ───────────────
+
+router.get(
+  '/',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const query = listBookingsQuerySchema.parse(req.query);
+
+    const { bookings, total } = await bookingService.listBookings({
+      userId: req.user.id,
+      status: query.status,
+      page: query.page,
+      limit: query.limit,
+    });
+
+    const totalPages = Math.ceil(total / query.limit);
+
+    res.json({
+      success: true,
+      data: bookings,
+      pagination: { page: query.page, limit: query.limit, total, totalPages },
+    });
+  })
+);
+
+// ─── PATCH /api/bookings/:id/status - Update booking status ─
+
+router.patch(
+  '/:id/status',
+  authMiddleware as any,
+  writeLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { id: bookingId } = req.params;
+    const body = updateStatusSchema.parse(req.body);
+
+    const updated = await bookingService.updateBookingStatus(
+      bookingId,
+      req.user.id,
+      body.status
+    );
+
+    res.json({
+      success: true,
+      data: updated,
+      message: `Booking ${body.status} successfully.`,
+    });
+  })
+);
+
+// ─── POST /api/bookings/:id/cancel - Cancel booking + strike tracking ─
+
 router.post(
   '/:id/cancel',
   authMiddleware as any,

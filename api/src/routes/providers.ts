@@ -8,6 +8,8 @@ import type { AuthenticatedRequest } from '../types';
 
 const router = Router();
 
+// ─── Validation Schemas ─────────────────────────────────────
+
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -17,7 +19,54 @@ const listQuerySchema = z.object({
   search: z.string().optional(),
 });
 
-// GET /api/providers - list providers (public)
+const updateProfileSchema = z.object({
+  full_name: z.string().min(1).max(100).optional(),
+  bio: z.string().max(1000).optional(),
+  city: z.string().max(100).optional(),
+  avatar_url: z.string().url().optional(),
+  is_available: z.boolean().optional(),
+});
+
+// ─── GET /api/providers/me - Get own provider profile ───────
+// IMPORTANT: /me routes must be registered BEFORE /:id to avoid
+// Express matching "me" as an id parameter.
+
+router.get(
+  '/me',
+  authMiddleware as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const provider = await providerService.getOwnProfile(req.user.id);
+
+    if (!provider) {
+      res.status(404).json({ success: false, error: 'Provider profile not found' });
+      return;
+    }
+
+    res.json({ success: true, data: provider });
+  })
+);
+
+// ─── PUT /api/providers/me - Update own provider profile ────
+
+router.put(
+  '/me',
+  authMiddleware as any,
+  writeLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = updateProfileSchema.parse(req.body);
+
+    const updated = await providerService.updateProfile(req.user.id, body);
+
+    res.json({
+      success: true,
+      data: updated,
+      message: 'Profile updated successfully.',
+    });
+  })
+);
+
+// ─── GET /api/providers - List providers (public) ───────────
+
 router.get(
   '/',
   asyncHandler(async (req, res: Response) => {
@@ -33,7 +82,8 @@ router.get(
   })
 );
 
-// GET /api/providers/:id - provider detail (public, phone hidden for specialists)
+// ─── GET /api/providers/:id - Provider detail (public, phone hidden for specialists) ─
+
 router.get(
   '/:id',
   asyncHandler(async (req, res: Response) => {
@@ -64,7 +114,8 @@ router.get(
   })
 );
 
-// PUT /api/providers/:id/tier - upgrade to specialist (requires auth + subscription)
+// ─── PUT /api/providers/:id/tier - Upgrade to specialist (requires auth + subscription) ─
+
 router.put(
   '/:id/tier',
   authMiddleware as any,
