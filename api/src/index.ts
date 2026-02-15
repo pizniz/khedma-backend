@@ -11,6 +11,9 @@ import { setupSignalingServer } from './signaling/webrtc';
 const app = express();
 const server = http.createServer(app);
 
+// Trust nginx proxy (required for rate limiting behind reverse proxy)
+app.set('trust proxy', 1);
+
 // Security
 app.use(helmet());
 app.use(
