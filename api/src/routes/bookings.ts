@@ -162,23 +162,26 @@ router.post(
       throw new AppError('Failed to cancel booking', 500);
     }
 
-    // 5. Log the cancellation
-    await supabaseAdmin.from('cancellation_log').insert({
-      user_id: userId,
-      booking_id: bookingId,
-      reason: body.reason,
-      cancelled_by: isClient ? 'client' : 'provider',
-    });
-
-    // 6. Check for ban
-    const strikeResult = await banService.recordCancellation(userId);
+    // 5. Log cancellation + check ban thresholds (all-in-one)
+    const strikeResult = await banService.logCancellation(
+      userId,
+      bookingId,
+      body.reason
+    );
 
     res.json({
       success: true,
       data: updated,
       message: `Booking cancelled. ${strikeResult.message}`,
+      cancelled_by: isClient ? 'client' : 'provider',
       ban: strikeResult.banned
-        ? { type: strikeResult.banType, message: strikeResult.message }
+        ? {
+            type: strikeResult.banType,
+            expires_at: strikeResult.banType === 'temporary'
+              ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+              : null,
+            message: strikeResult.message,
+          }
         : null,
     });
   })

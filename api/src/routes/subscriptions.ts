@@ -14,13 +14,26 @@ const createSubscriptionSchema = z.object({
   payment_reference: z.string().optional(),
 });
 
+// Accept both 'plan' short names and full plan_type names from the frontend
+function normalizePlanType(plan?: string, planType?: string): string {
+  const value = planType || plan || 'specialist_monthly';
+  if (value === 'monthly') return 'specialist_monthly';
+  if (value === 'yearly') return 'specialist_yearly';
+  return value;
+}
+
 // POST /api/subscriptions - create subscription
 router.post(
   '/',
   authMiddleware as any,
   writeLimiter,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const body = createSubscriptionSchema.parse(req.body);
+    // Normalize: accept { plan: 'monthly' } or { plan_type: 'specialist_monthly' }
+    const planType = normalizePlanType(req.body.plan, req.body.plan_type);
+    const body = createSubscriptionSchema.parse({
+      ...req.body,
+      plan_type: planType,
+    });
 
     const subscription = await subscriptionService.createSubscription(
       req.user.id,
@@ -53,7 +66,23 @@ router.get(
   })
 );
 
-// DELETE /api/subscriptions - cancel subscription
+// POST /api/subscriptions/cancel - cancel subscription
+router.post(
+  '/cancel',
+  authMiddleware as any,
+  writeLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const cancelled = await subscriptionService.cancelSubscription(req.user.id, req.user.id);
+
+    res.json({
+      success: true,
+      data: cancelled,
+      message: 'Subscription cancelled. Provider tier reverted to basic.',
+    });
+  })
+);
+
+// DELETE /api/subscriptions - cancel subscription (legacy)
 router.delete(
   '/',
   authMiddleware as any,

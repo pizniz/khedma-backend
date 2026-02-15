@@ -91,9 +91,19 @@ export interface Ban {
   user_id: string;
   ban_type: BanType;
   reason: string;
-  banned_until?: string | null;
+  starts_at: string;
+  expires_at: string | null; // null for permanent bans
   strike_count: number;
   created_at: string;
+}
+
+export interface BanInfo {
+  banned: boolean;
+  ban?: {
+    type: BanType;
+    reason: string;
+    expires_at: string | null;
+  };
 }
 
 export interface StrikeResult {
@@ -101,6 +111,16 @@ export interface StrikeResult {
   banType?: BanType;
   message: string;
   strikeCount: number;
+}
+
+// ─── Cancellation Log ───────────────────────────────────────
+
+export interface CancellationLog {
+  id: string;
+  user_id: string;
+  booking_id: string;
+  reason: string | null;
+  cancelled_at: string;
 }
 
 // ─── API Response ────────────────────────────────────────────

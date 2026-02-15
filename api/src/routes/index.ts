@@ -1,5 +1,5 @@
-import { Router, Response, NextFunction } from 'express';
-import { banService } from '../services/banService';
+import { Router, Request, Response, NextFunction } from 'express';
+import { banCheckMiddleware } from '../middleware/banCheck';
 import type { AuthenticatedRequest } from '../types';
 
 import healthRouter from './health';
@@ -9,55 +9,41 @@ import bookingsRouter from './bookings';
 import subscriptionsRouter from './subscriptions';
 import chatRouter from './chat';
 import uploadsRouter from './uploads';
+import favoritesRouter from './favorites';
 
 const router = Router();
 
-// Ban-check middleware - blocks banned users on authenticated routes
-async function banCheck(
-  req: AuthenticatedRequest,
+// ─── Write-only ban check ───────────────────────────────────
+// Applies banCheckMiddleware only to write operations (POST, PUT, PATCH, DELETE).
+// GET requests pass through — banned users can still browse.
+function banCheckWriteOnly(
+  req: Request,
   res: Response,
   next: NextFunction
-): Promise<void> {
-  if (!req.user) {
-    next();
+): void {
+  const writeMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+  if (writeMethods.includes(req.method.toUpperCase())) {
+    banCheckMiddleware(req as AuthenticatedRequest, res, next);
     return;
   }
 
-  try {
-    const activeBan = await banService.getActiveBan(req.user.id);
-
-    if (activeBan) {
-      const message =
-        activeBan.ban_type === 'permanent'
-          ? 'Your account has been permanently banned.'
-          : `Your account is temporarily banned until ${activeBan.banned_until}.`;
-
-      res.status(403).json({
-        success: false,
-        error: 'Account banned',
-        message,
-        ban: {
-          type: activeBan.ban_type,
-          reason: activeBan.reason,
-          expires_at: activeBan.banned_until,
-        },
-      });
-      return;
-    }
-  } catch (err) {
-    console.error('[BanCheck] Error:', err);
-    // Fail open - don't block if ban check fails
-  }
-
+  // GET and other read methods skip ban check
   next();
 }
 
+// ─── Route Registration ─────────────────────────────────────
+
+// Health check — no ban check at all
 router.use('/health', healthRouter);
-router.use('/providers', banCheck as any, providersRouter);
-router.use('/reviews', banCheck as any, reviewsRouter);
-router.use('/bookings', banCheck as any, bookingsRouter);
-router.use('/subscriptions', banCheck as any, subscriptionsRouter);
-router.use('/conversations', banCheck as any, chatRouter);
-router.use('/uploads', banCheck as any, uploadsRouter);
+
+// All other routes get write-only ban check
+router.use('/providers', banCheckWriteOnly, providersRouter);
+router.use('/reviews', banCheckWriteOnly, reviewsRouter);
+router.use('/bookings', banCheckWriteOnly, bookingsRouter);
+router.use('/subscriptions', banCheckWriteOnly, subscriptionsRouter);
+router.use('/conversations', banCheckWriteOnly, chatRouter);
+router.use('/uploads', banCheckWriteOnly, uploadsRouter);
+router.use('/favorites', banCheckWriteOnly, favoritesRouter);
 
 export default router;

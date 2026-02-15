@@ -3,8 +3,8 @@ import { AppError } from '../middleware/errorHandler';
 import type { Subscription } from '../types';
 
 const PLAN_CONFIG: Record<string, { days: number; amount: number }> = {
-  specialist_monthly: { days: 30, amount: 50 },
-  specialist_yearly: { days: 365, amount: 500 },
+  specialist_monthly: { days: 30, amount: 49 },
+  specialist_yearly: { days: 365, amount: 399 },
 };
 
 class SubscriptionService {
@@ -74,6 +74,13 @@ class SubscriptionService {
       console.error('[SubscriptionService] Error creating:', error);
       throw new AppError('Failed to create subscription', 500);
     }
+
+    // Auto-upgrade provider tier to specialist
+    await supabaseAdmin
+      .from('profiles')
+      .update({ provider_tier: 'specialist', phone_visible: false })
+      .eq('user_id', providerId)
+      .eq('user_type', 'provider');
 
     return subscription as Subscription;
   }
