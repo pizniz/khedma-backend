@@ -12,6 +12,77 @@ interface ListQuery {
 }
 
 class ProviderService {
+  async createProvider(
+    userId: string,
+    phone: string,
+    input: {
+      full_name: string;
+      categories: string[];
+      city: string;
+      tier: 'basic' | 'specialist';
+      bio?: string;
+    }
+  ): Promise<Provider> {
+    // Check if user already has a provider profile
+    const { data: existing } = await supabaseAdmin
+      .from('profiles')
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('user_type', 'provider')
+      .single();
+
+    if (existing) {
+      throw new AppError('Provider profile already exists', 409);
+    }
+
+    // Create or update the profile as a provider
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .upsert({
+        user_id: userId,
+        user_type: 'provider',
+        full_name: input.full_name,
+        phone: phone,
+        city: input.city,
+        bio: input.bio || null,
+        provider_tier: input.tier,
+        phone_visible: input.tier === 'basic',
+        is_available: true,
+        is_verified: false,
+      }, { onConflict: 'user_id' })
+      .select()
+      .single();
+
+    if (profileError || !profile) {
+      console.error('[ProviderService] Error creating profile:', profileError);
+      throw new AppError('Failed to create provider profile', 500);
+    }
+
+    // Link categories via provider_services
+    if (input.categories.length > 0) {
+      // Look up category IDs by slug
+      const { data: cats } = await supabaseAdmin
+        .from('service_categories')
+        .select('id, slug')
+        .in('slug', input.categories);
+
+      if (cats && cats.length > 0) {
+        const services = cats.map((cat: any) => ({
+          provider_id: userId,
+          category_id: cat.id,
+          title: cat.slug,
+          is_active: true,
+        }));
+
+        await supabaseAdmin
+          .from('provider_services')
+          .insert(services);
+      }
+    }
+
+    return profile as Provider;
+  }
+
   async listProviders(query: ListQuery): Promise<{ providers: Provider[]; total: number }> {
     const { page, limit, tier, category, city, search } = query;
     const offset = (page - 1) * limit;

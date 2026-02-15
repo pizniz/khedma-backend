@@ -20,6 +20,14 @@ const listQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+const createProviderSchema = z.object({
+  full_name: z.string().min(1).max(100),
+  categories: z.array(z.string()).min(1),
+  city: z.string().min(1).max(100),
+  tier: z.enum(['basic', 'specialist']),
+  bio: z.string().max(1000).optional(),
+});
+
 const updateProfileSchema = z.object({
   full_name: z.string().min(1).max(100).optional(),
   bio: z.string().max(1000).optional(),
@@ -62,6 +70,25 @@ router.put(
       success: true,
       data: updated,
       message: 'Profile updated successfully.',
+    });
+  })
+);
+
+// ─── POST /api/providers - Register as provider ─────────────
+
+router.post(
+  '/',
+  authMiddleware as any,
+  writeLimiter,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = createProviderSchema.parse(req.body);
+
+    const provider = await providerService.createProvider(req.user.id, req.user.phone || '', body);
+
+    res.status(201).json({
+      success: true,
+      data: provider,
+      message: 'Provider profile created successfully.',
     });
   })
 );
