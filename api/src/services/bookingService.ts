@@ -2,12 +2,17 @@ import { supabaseAdmin } from './supabase';
 import { AppError } from '../middleware/errorHandler';
 import type { Booking, BookingStatus } from '../types';
 
+// Online payment discount: 10% off when paying through the app
+const ONLINE_PAYMENT_DISCOUNT = 10;
+
 interface CreateBookingInput {
   client_id: string;
   provider_id: string;
   service_category: string;
   description?: string;
   scheduled_date?: string;
+  payment_method?: 'cash' | 'online';
+  price?: number;
 }
 
 interface ListBookingsQuery {
@@ -59,12 +64,27 @@ class BookingService {
       }
     }
 
+    const paymentMethod = input.payment_method || 'cash';
+    const originalPrice = input.price || null;
+    let discountPercent = 0;
+    let finalPrice = originalPrice;
+
+    // Apply 10% discount for online payments
+    if (paymentMethod === 'online' && originalPrice) {
+      discountPercent = ONLINE_PAYMENT_DISCOUNT;
+      finalPrice = Math.round(originalPrice * (1 - discountPercent / 100) * 100) / 100;
+    }
+
     const insertData: Record<string, unknown> = {
       client_id,
       provider_id,
       service_id: serviceId,
       status: 'pending',
       notes: description || null,
+      payment_method: paymentMethod,
+      discount_percent: discountPercent,
+      original_price: originalPrice,
+      final_price: finalPrice,
     };
 
     if (scheduled_date) {

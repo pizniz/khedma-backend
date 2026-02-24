@@ -17,6 +17,8 @@ const createBookingSchema = z.object({
   service_category: z.string().min(1, 'Service category is required'),
   description: z.string().max(1000).optional(),
   scheduled_date: z.string().optional(),
+  payment_method: z.enum(['cash', 'online']).default('cash'),
+  price: z.coerce.number().min(0).max(100000).optional(),
 });
 
 const listBookingsQuerySchema = z.object({
@@ -48,6 +50,8 @@ router.post(
       service_category: body.service_category,
       description: body.description,
       scheduled_date: body.scheduled_date,
+      payment_method: body.payment_method,
+      price: body.price,
     });
 
     res.status(201).json({

@@ -46,7 +46,7 @@ class ProviderService {
         city: input.city,
         bio: input.bio || null,
         provider_tier: input.tier,
-        phone_visible: input.tier === 'basic',
+        phone_visible: false,
         is_available: true,
         is_verified: false,
       }, { onConflict: 'user_id' })
@@ -97,10 +97,12 @@ class ProviderService {
       dbQuery = dbQuery.eq('provider_tier', tier);
     }
     if (city) {
-      dbQuery = dbQuery.ilike('city', `%${city}%`);
+      const sanitizedCity = city.replace(/[%_\\]/g, '\\$&').slice(0, 50);
+      dbQuery = dbQuery.ilike('city', `%${sanitizedCity}%`);
     }
     if (search) {
-      dbQuery = dbQuery.or(`full_name.ilike.%${search}%,bio.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&').slice(0, 100);
+      dbQuery = dbQuery.or(`full_name.ilike.%${sanitized}%,bio.ilike.%${sanitized}%`);
     }
 
     dbQuery = dbQuery
@@ -138,20 +140,31 @@ class ProviderService {
     return { providers, total: count || 0 };
   }
 
-  async getProviderById(userId: string, requesterId?: string): Promise<Provider | null> {
-    const { data, error } = await supabaseAdmin
+  async getProviderById(idOrUserId: string, requesterId?: string): Promise<Provider | null> {
+    // Try lookup by user_id first, then by id (profiles.id)
+    let { data, error } = await supabaseAdmin
       .from('profiles')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', idOrUserId)
       .eq('user_type', 'provider')
       .single();
 
-    if (error || !data) return null;
+    if (error || !data) {
+      // Fallback: try by profiles.id
+      const result = await supabaseAdmin
+        .from('profiles')
+        .select('*')
+        .eq('id', idOrUserId)
+        .eq('user_type', 'provider')
+        .single();
+      data = result.data;
+      if (!data) return null;
+    }
 
     const provider = data as Provider;
 
     // If requester is the provider themselves, show everything
-    if (requesterId === userId) return provider;
+    if (requesterId === provider.user_id) return provider;
 
     return this.sanitizeProvider(provider);
   }
@@ -253,11 +266,8 @@ class ProviderService {
   }
 
   private sanitizeProvider(provider: Provider): Provider {
-    // Hide phone number for specialists
-    if (provider.provider_tier === 'specialist' && !provider.phone_visible) {
-      return { ...provider, phone: null };
-    }
-    return provider;
+    // NEVER expose phone numbers — force all communication through the app
+    return { ...provider, phone: null };
   }
 }
 

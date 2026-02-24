@@ -10,6 +10,7 @@ import subscriptionsRouter from './subscriptions';
 import chatRouter from './chat';
 import uploadsRouter from './uploads';
 import favoritesRouter from './favorites';
+import verificationRouter from './verification';
 
 const router = Router();
 
@@ -45,5 +46,6 @@ router.use('/subscriptions', banCheckWriteOnly, subscriptionsRouter);
 router.use('/conversations', banCheckWriteOnly, chatRouter);
 router.use('/uploads', banCheckWriteOnly, uploadsRouter);
 router.use('/favorites', banCheckWriteOnly, favoritesRouter);
+router.use('/verification', banCheckWriteOnly, verificationRouter);
 
 export default router;

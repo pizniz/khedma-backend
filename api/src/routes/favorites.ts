@@ -66,7 +66,12 @@ router.get(
       return;
     }
 
-    const ids = idsParam.split(',').filter(Boolean);
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const ids = idsParam.split(',').filter(id => id && UUID_RE.test(id));
+    if (ids.length === 0) {
+      res.json({ success: true, data: {} });
+      return;
+    }
     const status = await favoritesService.getFavoriteStatus(req.user.id, ids);
 
     res.json({
